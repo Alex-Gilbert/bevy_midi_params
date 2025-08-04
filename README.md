@@ -14,7 +14,7 @@ Turn knobs, see results instantly. Perfect for shader artists, gameplay programm
 - **💾 Live persistence** - Parameters auto-save as you tweak them, resume exactly where you left off
 - **🔥 Hot reloading** - Change values with hardware controllers while your game runs
 - **🎨 Auto-generated UI** - Inspect and fine-tune with automatically created egui interfaces
-- **⚡ Plug & play** - Works with any MIDI controller (optimized for AKAI MIDImix)
+- **⚡ Plug & play** - Works with any MIDI controller with CC support
 - **🔗 Type-safe** - Full compile-time validation of CC mappings and ranges
 
 ## 🎮 Perfect For
@@ -78,79 +78,81 @@ fn main() {
 - ✅ Show up in a debug UI
 - ✅ Work with both hardware and UI controls
 
-## 🎛️ Supported Controllers
+## 🎛️ Finding Your Controller's CC Values
 
-Tested with:
-- **AKAI MIDImix** (recommended) - Perfect layout with 24 knobs + 8 faders + 16 buttons
-- **Behringer BCR2000** - Tons of knobs for complex parameter sets
-- **Novation Launch Control XL** - Great mix of knobs, faders, and pads
-- Any MIDI controller with CC (Continuous Controller) support
+To use any MIDI controller, you need to find which CC (Continuous Controller) numbers your knobs, faders, and buttons send. Use `aseqdump` to discover these values:
 
-## 📖 Examples
+### Install aseqdump (Linux/macOS)
+```bash
+# Ubuntu/Debian
+sudo apt install alsa-utils
 
-### Shader Tweaking
-```rust
-#[derive(Resource, MidiParams)]
-struct MaterialParams {
-    #[midi(1, 0.0..1.0)]    // Roughness
-    pub roughness: f32,
-    
-    #[midi(2, 0.0..1.0)]    // Metallic  
-    pub metallic: f32,
-    
-    #[midi(3, 0.0..3.0)]    // Emission intensity
-    pub emission: f32,
-}
+# macOS (via Homebrew)
+brew install alsa-utils
 ```
 
-### Physics Playground
+### Find Your Controller's CC Numbers
+1. **Connect your MIDI controller**
+2. **Run aseqdump to list MIDI ports:**
+   ```bash
+   aseqdump -l
+   ```
+3. **Start monitoring your controller** (replace `20:0` with your controller's port):
+   ```bash
+   aseqdump -p 20:0
+   ```
+4. **Turn knobs/move faders** - you'll see output like:
+   ```
+   Waiting for data. Press Ctrl+C to end.
+   Source_ 20:0, Event type = 10 (Control change), Channel = 0, Control = 1, Value = 64
+   Source_ 20:0, Event type = 10 (Control change), Channel = 0, Control = 2, Value = 127
+   ```
+5. **Note the Control numbers** - these are your CC values to use in `#[midi(CC, range)]`
+
+## 🎵 Using Your CC Values
+
+Once you've found your controller's CC numbers with `aseqdump`, use them in your code:
+
 ```rust
 #[derive(Resource, MidiParams)]
-struct PhysicsSettings {
-    #[midi(5, 0.0..20.0)]   // Gravity strength
-    pub gravity: f32,
+struct MyControls {
+    #[midi(1, 0.0..10.0)]    // CC 1 from aseqdump
+    pub speed: f32,
     
-    #[midi(6, 0.0..1.0)]    // Air resistance
-    pub damping: f32,
+    #[midi(7, 0.0..1.0)]     // CC 7 from aseqdump  
+    pub volume: f32,
     
-    #[midi(7, 0.1..5.0)]    // Time scale
-    pub time_scale: f32,
-    
-    #[midi(34, button)]     // Pause simulation
-    pub paused: bool,
+    #[midi(64, button)]      // CC 64 button from aseqdump
+    pub enabled: bool,
 }
 ```
-
-### Advanced: Custom Ranges and UI
-```rust
-#[derive(Resource, MidiParams)]
-struct AdvancedControls {
-    #[midi(10, 0.1..100.0)]     // Exponential range
-    pub particle_count: f32,
-    
-    #[midi(11, -180.0..180.0)]  // Degrees
-    pub rotation_angle: f32,
-    
-    #[midi(12, 0.01..0.99)]     // Probability
-    pub spawn_chance: f32,
-}
-```
-
-## 🎵 MIDI CC Reference
-
-For AKAI MIDImix:
-- **Knobs 1-8**: CCs 1-8 (top row)
-- **Knobs 9-16**: CCs 9-16 (middle row)  
-- **Knobs 17-24**: CCs 17-24 (bottom row)
-- **Faders 1-8**: CCs 19-26
-- **Buttons**: CCs 33-40 (top), 49-56 (bottom)
 
 ## 🔧 Configuration
 
-### Custom Persistence File
+### Custom Configuration
 ```rust
+// Default - uses first available controller
 App::new()
-    .add_plugins(MidiParamsPlugin::new("my_game_settings.ron"))
+    .add_plugins(MidiParamsPlugin::default())
+    .run();
+
+// Specify controller name (partial match)
+App::new()
+    .add_plugins(MidiParamsPlugin::new().with_controller("Launch Control"))
+    .run();
+
+// Custom persistence file
+App::new()
+    .add_plugins(MidiParamsPlugin::new().with_persist("my_settings.ron"))
+    .run();
+
+// Chain multiple options
+App::new()
+    .add_plugins(
+        MidiParamsPlugin::new()
+            .with_controller("BCR2000")
+            .with_persist("bcr_settings.ron")
+    )
     .run();
 ```
 
@@ -174,7 +176,7 @@ bevy_midi_params = { version = "0.1", default-features = false }
 bevy_midi_params uses:
 - **Proc macros** to generate MIDI mapping and UI code
 - **Inventory** for automatic registration of MIDI types
-- **RON/JSON** for human-readable parameter persistence  
+- **RON** for human-readable parameter persistence  
 - **midir** for cross-platform MIDI input
 - **egui** for optional debug UI (via bevy_egui)
 

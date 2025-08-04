@@ -20,10 +20,12 @@ pub struct MidiController {
     _connection: Option<Arc<Mutex<Option<MidiInputConnection<()>>>>>,
     /// A shared pointer to values which are updated by the connection
     _changed_values: Option<Arc<Mutex<HashMap<u8, f32>>>>,
+    /// Preferred MIDI controller name (partial match)
+    preferred_controller: Option<String>,
 }
 
 impl MidiController {
-    pub fn new(persist_path: Option<String>) -> Self {
+    pub fn new(persist_path: Option<String>, preferred_controller: Option<String>) -> Self {
         Self {
             values: HashMap::new(),
             mappings: HashMap::new(),
@@ -31,6 +33,7 @@ impl MidiController {
             registered_types: Vec::new(),
             _connection: None,
             _changed_values: None,
+            preferred_controller,
         }
     }
 
@@ -93,18 +96,22 @@ impl MidiController {
             return Err(MidiError::NoInputPorts);
         }
 
-        // Prefer MIDImix, fallback to first available
-        let in_port = in_ports
-            .iter()
-            .find(|port| {
-                midi_in
-                    .port_name(port)
-                    .unwrap_or_default()
-                    .to_lowercase()
-                    .contains("midi mix")
-            })
-            .or_else(|| in_ports.first())
-            .unwrap();
+        // Use preferred controller if specified, otherwise first available
+        let in_port = if let Some(ref preferred) = self.preferred_controller {
+            in_ports
+                .iter()
+                .find(|port| {
+                    midi_in
+                        .port_name(port)
+                        .unwrap_or_default()
+                        .to_lowercase()
+                        .contains(&preferred.to_lowercase())
+                })
+                .or_else(|| in_ports.first())
+        } else {
+            in_ports.first()
+        }
+        .unwrap();
 
         let port_name = midi_in.port_name(in_port).unwrap_or("Unknown".to_string());
         info!("Connecting to MIDI port: {}", port_name);
@@ -156,6 +163,6 @@ impl MidiController {
 
 impl Default for MidiController {
     fn default() -> Self {
-        Self::new(None)
+        Self::new(None, None)
     }
 }

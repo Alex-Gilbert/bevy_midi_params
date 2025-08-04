@@ -5,11 +5,11 @@
 //! - Using different control types (ranges and buttons)
 //! - Auto-persistence of parameter values
 //!
-//! Controls (AKAI MIDImix):
-//! - Knob 1: Player speed (0.0 - 10.0)
-//! - Knob 2: Jump height (1.0 - 5.0)
-//! - Button 1 (CC 33): Enable debug mode
-//! - Button 2 (CC 34): Enable physics
+//! Controls (use `aseqdump` to find your controller's CC values):
+//! - CC 16: Player speed (0.0 - 10.0)
+//! - CC 20: Jump height (1.0 - 5.0)
+//! - CC 33: Enable debug mode (button)
+//! - CC 34: Enable physics (button)
 //!
 //! The cube will change color based on the player speed parameter.
 
@@ -24,10 +24,10 @@ struct GameSettings {
     #[midi(20, 1.0..5.0)]
     pub jump_height: f32,
 
-    #[midi(33, button)]
+    #[midi(24, button)]
     pub debug_mode: bool,
 
-    #[midi(34, button)]
+    #[midi(28, button)]
     pub physics_enabled: bool,
 }
 
@@ -45,7 +45,11 @@ impl Default for GameSettings {
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(MidiParamsPlugin::new("basic_example.ron"))
+        .add_plugins(
+            MidiParamsPlugin::new()
+                .with_controller("midi mix")
+                .with_persist("basic_example.ron"),
+        )
         .add_systems(Startup, setup_scene)
         .add_systems(Update, (update_cube_color, display_debug_info))
         .run();
@@ -103,11 +107,7 @@ fn update_cube_color(
         if let Some(material) = materials.get_mut(material_handle) {
             // Color changes based on player speed
             let speed_factor = settings.player_speed / 10.0;
-            material.base_color = Color::srgb(
-                speed_factor,
-                1.0 - speed_factor,
-                0.5
-            );
+            material.base_color = Color::srgb(speed_factor, 1.0 - speed_factor, 0.5);
 
             // Emission based on jump height
             let jump_factor = (settings.jump_height - 1.0) / 4.0;
@@ -119,7 +119,10 @@ fn update_cube_color(
 fn display_debug_info(settings: Res<GameSettings>, mut gizmos: Gizmos) {
     if settings.debug_mode {
         // Draw debug gizmos
-        gizmos.cuboid(Transform::from_xyz(0.0, 0.0, 0.0), Color::srgb(0.0, 1.0, 0.0));
+        gizmos.cuboid(
+            Transform::from_xyz(0.0, 0.0, 0.0),
+            Color::srgb(0.0, 1.0, 0.0),
+        );
 
         // Print values to console when they change
         if settings.is_changed() {
@@ -127,7 +130,14 @@ fn display_debug_info(settings: Res<GameSettings>, mut gizmos: Gizmos) {
             println!("  Player Speed: {:.2}", settings.player_speed);
             println!("  Jump Height: {:.2}", settings.jump_height);
             println!("  Debug Mode: {}", settings.debug_mode);
-            println!("  Physics: {}", if settings.physics_enabled { "ON" } else { "OFF" });
+            println!(
+                "  Physics: {}",
+                if settings.physics_enabled {
+                    "ON"
+                } else {
+                    "OFF"
+                }
+            );
         }
     }
 }

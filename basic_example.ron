@@ -1,12 +1,12 @@
 {
     "GameSettings": (
         values: {
-            "physics_enabled": true,
-            "debug_mode": false,
-            "player_speed": 15.748031616210938,
             "jump_height": 5.0,
+            "player_speed": 54.33070755004883,
+            "physics_enabled": false,
+            "debug_mode": false,
         },
     ),
-    "last_saved": "2025-08-04T01:15:29.118031408+00:00",
+    "last_saved": "2025-08-04T01:51:30.895045371+00:00",
     "version": "0.1.0",
 }

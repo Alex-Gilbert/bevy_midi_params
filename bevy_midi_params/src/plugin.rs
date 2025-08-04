@@ -8,6 +8,8 @@ pub struct MidiParamsPlugin {
     pub persist_file: Option<String>,
     /// Whether to auto-connect to MIDI on startup
     pub auto_connect: bool,
+    /// Preferred MIDI controller name (partial match)
+    pub preferred_controller: Option<String>,
 }
 
 impl Default for MidiParamsPlugin {
@@ -15,17 +17,27 @@ impl Default for MidiParamsPlugin {
         Self {
             persist_file: None,
             auto_connect: true,
+            preferred_controller: None,
         }
     }
 }
 
 impl MidiParamsPlugin {
-    /// Create plugin with custom persistence file path
-    pub fn new(persist_file: impl Into<String>) -> Self {
-        Self {
-            persist_file: Some(persist_file.into()),
-            auto_connect: true,
-        }
+    /// Create new plugin with default settings
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set custom persistence file path
+    pub fn with_persist(mut self, persist_file: impl Into<String>) -> Self {
+        self.persist_file = Some(persist_file.into());
+        self
+    }
+
+    /// Set preferred MIDI controller name (partial match)
+    pub fn with_controller(mut self, controller_name: impl Into<String>) -> Self {
+        self.preferred_controller = Some(controller_name.into());
+        self
     }
 
     /// Disable auto MIDI connection (useful for testing)
@@ -38,7 +50,10 @@ impl MidiParamsPlugin {
 impl Plugin for MidiParamsPlugin {
     fn build(&self, app: &mut App) {
         // Insert MIDI controller resource
-        app.insert_resource(MidiController::new(self.persist_file.clone()));
+        app.insert_resource(MidiController::new(
+            self.persist_file.clone(),
+            self.preferred_controller.clone(),
+        ));
 
         // Auto-register all MidiParams types that have been defined
         for registration in inventory::iter::<MidiParamsRegistration> {
