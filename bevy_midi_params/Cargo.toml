@@ -15,7 +15,7 @@ authors = ["Your Name <your.email@example.com>"]
 [dependencies]
 bevy = { workspace = true, features = ["bevy_asset", "bevy_render", "bevy_core_pipeline"] }
 bevy_midi_params_derive = { version = "0.1.0", path = "../bevy_midi_params_derive" }
-midir = { workspace = true }
+midir = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ron = { workspace = true }
@@ -26,8 +26,11 @@ chrono = { workspace = true }
 log = { workspace = true }
 
 [features]
-default = ["ui"]
+default = ["persistence"]
+persistence = []
+midi = ["midir", "persistence"]
 ui = ["egui", "bevy_egui"]
+dev = ["midi", "ui"]
 
 [dev-dependencies]
 bevy = { workspace = true, features = ["default"] }

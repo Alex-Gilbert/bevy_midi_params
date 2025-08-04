@@ -52,57 +52,81 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
         let field_name_str = field_name.to_string();
 
         if let Some(midi_attr) = parse_midi_attribute(field)? {
-            let (cc, control_type) = midi_attr;
+            let MidiAttr { cc, control_type, persist_only, .. } = midi_attr;
 
             match control_type {
                 ControlType::Range { min, max } => {
-                    // MIDI mapping
+                    // MIDI mapping (with optional CC)
+                    let cc_option = if let Some(cc_val) = cc {
+                        quote! { Some(#cc_val) }
+                    } else {
+                        quote! { None }
+                    };
                     midi_mappings.push(quote! {
-                        bevy_midi_params::MidiMapping::range(#cc, #field_name_str, #min, #max)
+                        bevy_midi_params::MidiMapping::range(#cc_option, #field_name_str, #min, #max)
                     });
 
-                    // MIDI update logic
-                    midi_updates.push(quote! {
-                        #cc => {
-                            let new_value = #min + value * (#max - #min);
-                            if (self.#field_name - new_value).abs() > f32::EPSILON {
-                                self.#field_name = new_value;
-                                changed = true;
+                    // MIDI update logic (only if CC is present)
+                    if let Some(cc_val) = cc {
+                        midi_updates.push(quote! {
+                            #cc_val => {
+                                let new_value = #min + value * (#max - #min);
+                                if (self.#field_name - new_value).abs() > f32::EPSILON {
+                                    self.#field_name = new_value;
+                                    changed = true;
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
 
                     // UI control
                     let display_name = field_name_str.replace('_', " ");
+                    let label = if let Some(cc_val) = cc {
+                        quote! { format!("{} (CC{}):", #display_name, #cc_val) }
+                    } else {
+                        quote! { format!("{} (persist only):", #display_name) }
+                    };
                     ui_controls.push(quote! {
                         ui.horizontal(|ui| {
-                            ui.label(format!("{} (CC{}):", #display_name, #cc));
+                            ui.label(#label);
                             // ui_changed |= ui.add(egui::Slider::new(&mut self.#field_name, #min..=#max)
                             //     .text(format!("{:.3}", self.#field_name))).changed();
                         });
                     });
                 }
                 ControlType::Button => {
-                    // MIDI mapping
+                    // MIDI mapping (with optional CC)
+                    let cc_option = if let Some(cc_val) = cc {
+                        quote! { Some(#cc_val) }
+                    } else {
+                        quote! { None }
+                    };
                     midi_mappings.push(quote! {
-                        bevy_midi_params::MidiMapping::button(#cc, #field_name_str)
+                        bevy_midi_params::MidiMapping::button(#cc_option, #field_name_str)
                     });
 
-                    // MIDI update logic
-                    midi_updates.push(quote! {
-                        #cc => {
-                            if value > 0.5 {
-                                self.#field_name = !self.#field_name;
-                                changed = true;
+                    // MIDI update logic (only if CC is present)
+                    if let Some(cc_val) = cc {
+                        midi_updates.push(quote! {
+                            #cc_val => {
+                                if value > 0.5 {
+                                    self.#field_name = !self.#field_name;
+                                    changed = true;
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
 
                     // UI control
                     let display_name = field_name_str.replace('_', " ");
+                    let label = if let Some(cc_val) = cc {
+                        quote! { format!("{} (CC{}):", #display_name, #cc_val) }
+                    } else {
+                        quote! { format!("{} (persist only):", #display_name) }
+                    };
                     ui_controls.push(quote! {
                         ui.horizontal(|ui| {
-                            ui.label(format!("{} (CC{}):", #display_name, #cc));
+                            ui.label(#label);
                             ui_changed |= ui.checkbox(&mut self.#field_name, "").changed();
                         });
                     });
@@ -129,7 +153,8 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
     let type_name_str = name.to_string();
 
     let expanded = quote! {
-        impl #impl_generics bevy_midi_params::MidiControllable for #name #ty_generics #where_clause {
+        impl #impl_generics bevy_midi_params::PersistableParams for #name #ty_generics #where_clause {
+            #[cfg(feature = "midi")]
             fn update_from_midi(&mut self, cc: u8, value: f32) -> bool {
                 let mut changed = false;
                 match cc {
@@ -139,7 +164,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                 changed
             }
 
-            fn get_midi_mappings() -> Vec<bevy_midi_params::MidiMapping> {
+            fn get_param_mappings() -> Vec<bevy_midi_params::MidiMapping> {
                 vec![#(#midi_mappings),*]
             }
 
@@ -181,10 +206,12 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
 
         // Auto-register this type when it's used
         bevy_midi_params::inventory::submit! {
-            bevy_midi_params::MidiParamsRegistration {
+            bevy_midi_params::ParamsRegistration {
                 type_name: #type_name_str,
                 register_fn: |app: &mut bevy::prelude::App| {
-                    bevy_midi_params::register_midi_type::<#name #ty_generics>(app);
+                    bevy_midi_params::register_persistable_type::<#name #ty_generics>(app);
+                    #[cfg(feature = "midi")]
+                    bevy_midi_params::register_midi_control::<#name #ty_generics>(app);
                 },
             }
         }
@@ -199,11 +226,11 @@ enum ControlType {
     Button,
 }
 
-fn parse_midi_attribute(field: &Field) -> SynResult<Option<(u8, ControlType)>> {
+fn parse_midi_attribute(field: &Field) -> SynResult<Option<MidiAttr>> {
     for attr in &field.attrs {
         if attr.path().is_ident("midi") {
             let midi_attr = parse_midi_meta(&attr.meta)?;
-            return Ok(Some((midi_attr.cc, midi_attr.control_type)));
+            return Ok(Some(midi_attr));
         }
     }
     Ok(None)
@@ -229,16 +256,21 @@ fn parse_midi_meta(meta: &Meta) -> SynResult<MidiAttr> {
 // #[midi(4)]                     - CC default range 0.0..1.0
 // #[midi(note = 18, button)]     - Note-based button
 // #[midi(cc = 33, button)]       - CC-based button (explicit)
+// #[midi(persist, 0.0..1.0)]     - Persist-only range (no MIDI control)
+// #[midi(persist, button)]       - Persist-only button (no MIDI control)
+// #[midi(persist)]               - Persist-only default range 0.0..1.0
 struct MidiAttr {
-    cc: u8,
+    cc: Option<u8>,
     control_type: ControlType,
     is_note: bool,
+    persist_only: bool,
 }
 
 impl syn::parse::Parse for MidiAttr {
     fn parse(input: syn::parse::ParseStream) -> SynResult<Self> {
         let mut cc = None;
         let mut is_note = false;
+        let mut persist_only = false;
         let mut control_type = None;
 
         // Check if first token is an identifier (for named parameters)
@@ -256,7 +288,11 @@ impl syn::parse::Parse for MidiAttr {
                     cc = Some(extract_u8_from_lit(&note_lit)? + 128); // Offset notes
                     is_note = true;
                 }
-                _ => return Err(Error::new_spanned(ident, "Expected 'cc' or 'note'")),
+                "persist" => {
+                    persist_only = true;
+                    cc = None;
+                }
+                _ => return Err(Error::new_spanned(ident, "Expected 'cc', 'note', or 'persist'")),
             }
         } else {
             // First token is a number (traditional syntax)
@@ -264,12 +300,8 @@ impl syn::parse::Parse for MidiAttr {
             cc = Some(extract_u8_from_lit(&cc_lit)?);
         }
 
-        let cc = cc.ok_or_else(|| {
-            Error::new(proc_macro2::Span::call_site(), "Missing CC or note number")
-        })?;
-
         if input.is_empty() {
-            // Default range for CC, error for note
+            // Default range for CC/persist, error for note
             if is_note {
                 return Err(Error::new(
                     proc_macro2::Span::call_site(),
@@ -280,6 +312,7 @@ impl syn::parse::Parse for MidiAttr {
                 cc,
                 control_type: ControlType::Range { min: 0.0, max: 1.0 },
                 is_note,
+                persist_only,
             });
         }
 
@@ -333,6 +366,7 @@ impl syn::parse::Parse for MidiAttr {
             cc,
             control_type,
             is_note,
+            persist_only,
         })
     }
 }

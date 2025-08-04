@@ -1,8 +1,14 @@
-use crate::{midi_control_ui, MidiController, MidiPersistFile, MidiResult, PersistData};
+use crate::{MidiResult, PersistData};
+#[cfg(feature = "midi")]
+use crate::MidiController;
 use bevy::prelude::*;
 use log::{debug, error, info, warn};
 
 /// Main plugin for MIDI parameter integration
+/// 
+/// **DEPRECATED**: Use `ParamsPersistencePlugin` and `MidiControlPlugin` instead.
+/// For convenience, use `bevy_midi_params::dev_plugins()` or `bevy_midi_params::prod_plugins()`.
+#[deprecated(since = "0.2.0", note = "Use ParamsPersistencePlugin and MidiControlPlugin instead")]
 pub struct MidiParamsPlugin {
     /// Path to persistence file
     pub persist_file: Option<String>,
@@ -49,26 +55,26 @@ impl MidiParamsPlugin {
 
 impl Plugin for MidiParamsPlugin {
     fn build(&self, app: &mut App) {
-        // Insert MIDI controller resource
-        app.insert_resource(MidiController::new(
-            self.persist_file.clone(),
-            self.preferred_controller.clone(),
-        ));
+        // Insert MIDI controller resource (only if MIDI feature is enabled)
+        #[cfg(feature = "midi")]
+        {
+            app.insert_resource(MidiController::new(
+                self.persist_file.clone(),
+                self.preferred_controller.clone(),
+            ));
+
+            if self.auto_connect {
+                app.add_systems(Startup, setup_midi_input);
+            }
+
+            app.add_systems(PreUpdate, update_midi_controller);
+        }
 
         // Auto-register all MidiParams types that have been defined
         for registration in inventory::iter::<MidiParamsRegistration> {
             info!("Auto-registering MIDI type: {}", registration.type_name);
             (registration.register_fn)(app);
         }
-
-        if self.auto_connect {
-            app.add_systems(Startup, setup_midi_input);
-        }
-
-        // #[cfg(feature = "ui")]
-        // app.add_systems(Update, midi_control_ui);
-
-        app.add_systems(PreUpdate, update_midi_controller);
     }
 }
 
@@ -117,24 +123,28 @@ pub fn register_midi_type<T: Resource + MidiControllable + Default>(app: &mut Ap
         world.init_resource::<T>();
     }
 
-    // Register mappings with the controller
-    if let Some(mut midi_controller) = world.get_resource_mut::<MidiController>() {
-        for mapping in T::get_midi_mappings() {
-            midi_controller.register_mapping(mapping);
+    // Register mappings with the controller (only if MIDI feature is enabled)
+    #[cfg(feature = "midi")]
+    {
+        if let Some(mut midi_controller) = world.get_resource_mut::<MidiController>() {
+            for mapping in T::get_midi_mappings() {
+                midi_controller.register_mapping(mapping);
+            }
+            midi_controller.register_type(type_name);
         }
-        midi_controller.register_type(type_name);
-    }
 
-    // Add systems for this type
-    app.add_systems(
-        Update,
-        (update_and_persist_params::<T>, save_on_ui_change::<T>),
-    );
+        // Add systems for this type
+        app.add_systems(
+            Update,
+            (update_and_persist_params::<T>, save_on_ui_change::<T>),
+        );
+    }
 }
 
 // ===== SYSTEM IMPLEMENTATIONS =====
 
 /// Setup MIDI input connection
+#[cfg(feature = "midi")]
 fn setup_midi_input(mut midi_controller: ResMut<MidiController>) {
     match midi_controller.connect_midi() {
         Ok(()) => info!("MIDI connection established"),
@@ -142,11 +152,13 @@ fn setup_midi_input(mut midi_controller: ResMut<MidiController>) {
     }
 }
 
+#[cfg(feature = "midi")]
 fn update_midi_controller(mut midi_controller: ResMut<MidiController>) {
     midi_controller.update_values();
 }
 
 /// Load persisted values for all registered types
+#[cfg(feature = "midi")]
 fn load_all_persisted_values(world: &mut World) {
     let persist_file = {
         let midi_controller = world.resource::<MidiController>();
@@ -171,6 +183,7 @@ fn load_all_persisted_values(world: &mut World) {
 }
 
 /// Generic system to update parameters from MIDI and auto-save changes
+#[cfg(feature = "midi")]
 fn update_and_persist_params<T: Resource + MidiControllable>(
     midi_controller: Res<MidiController>,
     mut params: ResMut<T>,
@@ -179,18 +192,21 @@ fn update_and_persist_params<T: Resource + MidiControllable>(
 
     // Update from MIDI input
     for mapping in T::get_midi_mappings() {
-        if let Some(normalized_value) = midi_controller.values.get(&mapping.cc).copied() {
-            let scaled_value = mapping.scale_value(normalized_value);
+        // Only process mappings that have MIDI control enabled
+        if let Some(cc) = mapping.cc {
+            if let Some(normalized_value) = midi_controller.values.get(&cc).copied() {
+                let scaled_value = mapping.scale_value(normalized_value);
 
-            // For range controls, pass the scaled value directly
-            // For buttons, we pass the normalized value (> 0.5 triggers toggle)
-            let value_to_pass = match mapping.control_type {
-                crate::ControlType::Range { .. } => scaled_value,
-                crate::ControlType::Button => normalized_value,
-            };
+                // For range controls, pass the scaled value directly
+                // For buttons, we pass the normalized value (> 0.5 triggers toggle)
+                let value_to_pass = match mapping.control_type {
+                    crate::ControlType::Range { .. } => scaled_value,
+                    crate::ControlType::Button => normalized_value,
+                };
 
-            if params.update_from_midi(mapping.cc, value_to_pass) {
-                changed = true;
+                if params.update_from_midi(cc, value_to_pass) {
+                    changed = true;
+                }
             }
         }
     }
@@ -204,6 +220,7 @@ fn update_and_persist_params<T: Resource + MidiControllable>(
 }
 
 /// Save parameters when UI changes them
+#[cfg(feature = "midi")]
 fn save_on_ui_change<T: Resource + MidiControllable>(
     midi_controller: Res<MidiController>,
     params: Res<T>,
@@ -218,6 +235,7 @@ fn save_on_ui_change<T: Resource + MidiControllable>(
 }
 
 /// Helper function to save parameters to file
+#[cfg(feature = "midi")]
 fn save_params_to_file<T: MidiControllable>(
     midi_controller: &MidiController,
     params: &T,

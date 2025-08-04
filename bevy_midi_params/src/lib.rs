@@ -39,17 +39,22 @@ mod mapping;
 mod persistence;
 mod plugin;
 mod error;
+mod persistence_plugin;
+mod midi_plugin;
 
 #[cfg(feature = "ui")]
 mod ui;
 
 // Re-export everything users need
 pub use bevy_midi_params_derive::MidiParams;
+#[cfg(feature = "midi")]
 pub use controller::*;
 pub use mapping::*;
 pub use persistence::*;
 pub use plugin::*;
 pub use error::*;
+pub use persistence_plugin::*;
+pub use midi_plugin::*;
 
 #[cfg(feature = "ui")]
 pub use ui::*;
@@ -61,12 +66,59 @@ pub use inventory;
 pub mod prelude {
     pub use crate::{
         MidiParams,
-        MidiParamsPlugin,
+        MidiParamsPlugin, // Legacy plugin (deprecated)
+        ParamsPersistencePlugin,
+        MidiControlPlugin,
         MidiMapping,
-        MidiController,
         MidiError,
+        PersistableParams,
     };
+    
+    #[cfg(feature = "midi")]
+    pub use crate::MidiController;
     
     #[cfg(feature = "ui")]
     pub use crate::ui::*;
+}
+
+/// Convenience function to add all plugins for development builds
+/// Includes both persistence and MIDI control
+#[cfg(feature = "midi")]
+pub fn dev_plugins() -> (ParamsPersistencePlugin, MidiControlPlugin) {
+    (
+        ParamsPersistencePlugin::default(),
+        MidiControlPlugin::default(),
+    )
+}
+
+/// Convenience function to add all plugins for development builds (no MIDI feature)
+#[cfg(not(feature = "midi"))]
+pub fn dev_plugins() -> ParamsPersistencePlugin {
+    ParamsPersistencePlugin::default()
+}
+
+/// Convenience function to add plugins for production builds
+/// Only includes persistence (no MIDI dependencies)
+pub fn prod_plugins() -> ParamsPersistencePlugin {
+    ParamsPersistencePlugin::default()
+}
+
+/// Convenience function with custom persistence file for development
+#[cfg(feature = "midi")]
+pub fn dev_plugins_with_file(persist_file: impl Into<String>) -> (ParamsPersistencePlugin, MidiControlPlugin) {
+    (
+        ParamsPersistencePlugin::default().with_persist(persist_file),
+        MidiControlPlugin::default(),
+    )
+}
+
+/// Convenience function with custom persistence file for development (no MIDI feature)
+#[cfg(not(feature = "midi"))]
+pub fn dev_plugins_with_file(persist_file: impl Into<String>) -> ParamsPersistencePlugin {
+    ParamsPersistencePlugin::default().with_persist(persist_file)
+}
+
+/// Convenience function with custom persistence file for production
+pub fn prod_plugins_with_file(persist_file: impl Into<String>) -> ParamsPersistencePlugin {
+    ParamsPersistencePlugin::default().with_persist(persist_file)
 }

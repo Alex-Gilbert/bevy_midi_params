@@ -1,11 +1,13 @@
 use crate::{MidiError, MidiMapping, MidiPersistFile, MidiResult};
 use bevy::prelude::*;
 use log::{debug, info};
+#[cfg(feature = "midi")]
 use midir::{Ignore, MidiInput, MidiInputConnection};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 /// Resource that manages MIDI controller input and state
+#[cfg(feature = "midi")]
 #[derive(Resource)]
 pub struct MidiController {
     /// Current MIDI CC values (normalized 0.0-1.0)
@@ -24,6 +26,7 @@ pub struct MidiController {
     preferred_controller: Option<String>,
 }
 
+#[cfg(feature = "midi")]
 impl MidiController {
     pub fn new(persist_path: Option<String>, preferred_controller: Option<String>) -> Self {
         Self {
@@ -56,8 +59,11 @@ impl MidiController {
 
     /// Register a MIDI mapping
     pub fn register_mapping(&mut self, mapping: MidiMapping) {
-        self.values.insert(mapping.cc, 0.0);
-        self.mappings.insert(mapping.cc, mapping);
+        // Only register mappings that have MIDI control enabled
+        if let Some(cc) = mapping.cc {
+            self.values.insert(cc, 0.0);
+            self.mappings.insert(cc, mapping);
+        }
     }
 
     /// Register a type name for persistence tracking
@@ -161,6 +167,7 @@ impl MidiController {
     }
 }
 
+#[cfg(feature = "midi")]
 impl Default for MidiController {
     fn default() -> Self {
         Self::new(None, None)

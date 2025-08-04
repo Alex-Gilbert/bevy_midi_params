@@ -4,6 +4,7 @@
 //! - Setting up MIDI parameter control
 //! - Using different control types (ranges and buttons)
 //! - Auto-persistence of parameter values
+//! - Migration from old to new plugin architecture
 //!
 //! Controls (use `aseqdump` to find your controller's CC values):
 //! - CC 16: Player speed (0.0 - 10.0)
@@ -12,6 +13,9 @@
 //! - CC 34: Enable physics (button)
 //!
 //! The cube will change color based on the player speed parameter.
+//!
+//! NOTE: This example uses the legacy MidiParamsPlugin for compatibility.
+//! For new projects, see the `new_architecture.rs` example.
 
 use bevy::prelude::*;
 use bevy_midi_params::prelude::*;
