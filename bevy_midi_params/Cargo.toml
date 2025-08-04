@@ -1,0 +1,33 @@
+[package]
+name = "bevy_midi_params"
+version = "0.1.0"
+edition = "2021"
+description = "Hardware MIDI controller integration for live parameter tweaking in Bevy games"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/bevy_midi_params"
+homepage = "https://github.com/yourusername/bevy_midi_params"
+documentation = "https://docs.rs/bevy_midi_params"
+readme = "../README.md"
+keywords = ["bevy", "midi", "controller", "tweaking", "development"]
+categories = ["game-development", "multimedia::audio"]
+authors = ["Your Name <your.email@example.com>"]
+
+[dependencies]
+bevy = { workspace = true, features = ["bevy_asset", "bevy_render", "bevy_core_pipeline"] }
+bevy_midi_params_derive = { version = "0.1.0", path = "../bevy_midi_params_derive" }
+midir = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+ron = { workspace = true }
+egui = { workspace = true, optional = true }
+bevy_egui = { workspace = true, optional = true }
+inventory = { workspace = true }
+chrono = { workspace = true }
+log = { workspace = true }
+
+[features]
+default = ["ui"]
+ui = ["egui", "bevy_egui"]
+
+[dev-dependencies]
+bevy = { workspace = true, features = ["default"] }

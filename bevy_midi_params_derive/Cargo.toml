@@ -1,0 +1,17 @@
+[package]
+name = "bevy_midi_params_derive"
+version = "0.1.0"
+edition = "2021"
+description = "Derive macros for bevy_midi_params"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/bevy_midi_params"
+authors = ["Your Name <your.email@example.com>"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { workspace = true }
+quote = { workspace = true }
+proc-macro2 = { workspace = true }
+log = { workspace = true }
