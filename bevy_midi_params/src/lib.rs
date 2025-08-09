@@ -36,7 +36,6 @@
 
 mod controller;
 mod mapping;
-mod persistence;
 mod plugin;
 mod error;
 
@@ -47,7 +46,6 @@ mod ui;
 pub use bevy_midi_params_derive::MidiParams;
 pub use controller::*;
 pub use mapping::*;
-pub use persistence::*;
 pub use plugin::*;
 pub use error::*;
 
