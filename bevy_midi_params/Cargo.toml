@@ -16,13 +16,9 @@ authors = ["Your Name <your.email@example.com>"]
 bevy = { workspace = true, features = ["bevy_asset", "bevy_render", "bevy_core_pipeline"] }
 bevy_midi_params_derive = { version = "0.1.0", path = "../bevy_midi_params_derive" }
 midir = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-ron = { workspace = true }
 egui = { workspace = true, optional = true }
 bevy_egui = { workspace = true, optional = true }
 inventory = { workspace = true }
-chrono = { workspace = true }
 log = { workspace = true }
 
 [features]

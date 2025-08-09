@@ -7,8 +7,6 @@ pub enum MidiError {
     NoInputPorts,
     /// Failed to connect to MIDI device
     ConnectionFailed(String),
-    /// Failed to save/load persistence file
-    PersistenceError(String),
     /// Invalid MIDI mapping configuration
     InvalidMapping(String),
 }
@@ -18,7 +16,6 @@ impl fmt::Display for MidiError {
         match self {
             MidiError::NoInputPorts => write!(f, "No MIDI input ports found"),
             MidiError::ConnectionFailed(msg) => write!(f, "MIDI connection failed: {}", msg),
-            MidiError::PersistenceError(msg) => write!(f, "Persistence error: {}", msg),
             MidiError::InvalidMapping(msg) => write!(f, "Invalid MIDI mapping: {}", msg),
         }
     }

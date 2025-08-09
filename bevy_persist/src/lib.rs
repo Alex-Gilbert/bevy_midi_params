@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::marker::PhantomData;
+
 
 pub mod prelude {
     pub use crate::{
@@ -275,7 +275,7 @@ impl Plugin for PersistPlugin {
 
 /// System that auto-saves changed resources
 fn auto_save_system(
-    manager: Res<PersistManager>,
+    _manager: Res<PersistManager>,
     // We'll need to add specific systems for each persistable type
     // This is where the derive macro will come in handy
 ) {

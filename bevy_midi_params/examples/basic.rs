@@ -48,7 +48,9 @@ fn main() {
         .add_plugins(
             MidiParamsPlugin::new()
                 .with_controller("midi mix")
-                .with_persist("basic_example.ron"),
+                // Note: To enable the built-in UI, add:
+                // .with_ui()
+                // and also add the bevy_egui plugin
         )
         .add_systems(Startup, setup_scene)
         .add_systems(Update, (update_cube_color, display_debug_info))

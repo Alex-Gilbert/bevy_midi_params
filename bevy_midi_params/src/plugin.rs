@@ -1,23 +1,25 @@
-use crate::{midi_control_ui, MidiController, MidiPersistFile, MidiResult, PersistData};
+use crate::MidiController;
 use bevy::prelude::*;
-use log::{debug, error, info, warn};
+use log::{info, warn};
 
 /// Main plugin for MIDI parameter integration
 pub struct MidiParamsPlugin {
-    /// Path to persistence file
-    pub persist_file: Option<String>,
     /// Whether to auto-connect to MIDI on startup
     pub auto_connect: bool,
     /// Preferred MIDI controller name (partial match)
     pub preferred_controller: Option<String>,
+    /// Whether to enable the built-in UI (requires bevy_egui)
+    #[cfg(feature = "ui")]
+    pub enable_ui: bool,
 }
 
 impl Default for MidiParamsPlugin {
     fn default() -> Self {
         Self {
-            persist_file: None,
             auto_connect: true,
             preferred_controller: None,
+            #[cfg(feature = "ui")]
+            enable_ui: false,  // Default to false, user must opt-in
         }
     }
 }
@@ -26,12 +28,6 @@ impl MidiParamsPlugin {
     /// Create new plugin with default settings
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Set custom persistence file path
-    pub fn with_persist(mut self, persist_file: impl Into<String>) -> Self {
-        self.persist_file = Some(persist_file.into());
-        self
     }
 
     /// Set preferred MIDI controller name (partial match)
@@ -45,15 +41,19 @@ impl MidiParamsPlugin {
         self.auto_connect = false;
         self
     }
+    
+    /// Enable the built-in UI (requires bevy_egui plugin to be added)
+    #[cfg(feature = "ui")]
+    pub fn with_ui(mut self) -> Self {
+        self.enable_ui = true;
+        self
+    }
 }
 
 impl Plugin for MidiParamsPlugin {
     fn build(&self, app: &mut App) {
         // Insert MIDI controller resource
-        app.insert_resource(MidiController::new(
-            self.persist_file.clone(),
-            self.preferred_controller.clone(),
-        ));
+        app.insert_resource(MidiController::new(self.preferred_controller.clone()));
 
         // Auto-register all MidiParams types that have been defined
         for registration in inventory::iter::<MidiParamsRegistration> {
@@ -65,8 +65,10 @@ impl Plugin for MidiParamsPlugin {
             app.add_systems(Startup, setup_midi_input);
         }
 
-        // #[cfg(feature = "ui")]
-        // app.add_systems(Update, midi_control_ui);
+        #[cfg(feature = "ui")]
+        if self.enable_ui {
+            app.add_systems(Update, crate::midi_control_ui);
+        }
 
         app.add_systems(PreUpdate, update_midi_controller);
     }
@@ -96,14 +98,16 @@ pub trait MidiControllable {
     #[cfg(not(feature = "ui"))]
     fn render_ui(&mut self, ui: &mut ()) -> bool;
 
-    /// Get type name for persistence
+    /// Get type name
     fn get_type_name() -> &'static str;
+}
 
-    /// Convert to persistence data
-    fn to_persist_data(&self) -> PersistData;
-
-    /// Load from persistence data
-    fn from_persist_data(&mut self, data: &PersistData);
+/// Event emitted when MIDI parameters change
+#[derive(Event, Debug, Clone)]
+pub struct MidiParamChanged {
+    pub type_name: String,
+    pub cc: u8,
+    pub value: f32,
 }
 
 /// Register a MidiParams type with the controller
@@ -125,11 +129,13 @@ pub fn register_midi_type<T: Resource + MidiControllable + Default>(app: &mut Ap
         midi_controller.register_type(type_name);
     }
 
+    // Add event type if not already added
+    if !app.world().contains_resource::<Events<MidiParamChanged>>() {
+        app.add_event::<MidiParamChanged>();
+    }
+
     // Add systems for this type
-    app.add_systems(
-        Update,
-        (update_and_persist_params::<T>, save_on_ui_change::<T>),
-    );
+    app.add_systems(Update, update_params_from_midi::<T>);
 }
 
 // ===== SYSTEM IMPLEMENTATIONS =====
@@ -146,37 +152,12 @@ fn update_midi_controller(mut midi_controller: ResMut<MidiController>) {
     midi_controller.update_values();
 }
 
-/// Load persisted values for all registered types
-fn load_all_persisted_values(world: &mut World) {
-    let persist_file = {
-        let midi_controller = world.resource::<MidiController>();
-        match midi_controller.load_persist_file() {
-            Ok(file) => file,
-            Err(e) => {
-                warn!("Failed to load persistence file: {}", e);
-                return;
-            }
-        }
-    };
-
-    // Load data for each registered type
-    for registration in inventory::iter::<MidiParamsRegistration> {
-        if let Some(data) = persist_file.get_type_data(registration.type_name) {
-            // This is a bit tricky - we need to call from_persist_data on the right resource
-            // For now, we'll do a runtime dispatch. In a real implementation,
-            // this could be improved with a trait object or type registry.
-            info!("Would load {} from persistence", registration.type_name);
-        }
-    }
-}
-
-/// Generic system to update parameters from MIDI and auto-save changes
-fn update_and_persist_params<T: Resource + MidiControllable>(
+/// Generic system to update parameters from MIDI
+fn update_params_from_midi<T: Resource + MidiControllable>(
     midi_controller: Res<MidiController>,
     mut params: ResMut<T>,
+    mut events: EventWriter<MidiParamChanged>,
 ) {
-    let mut changed = false;
-
     // Update from MIDI input
     for mapping in T::get_midi_mappings() {
         if let Some(normalized_value) = midi_controller.values.get(&mapping.cc).copied() {
@@ -190,43 +171,13 @@ fn update_and_persist_params<T: Resource + MidiControllable>(
             };
 
             if params.update_from_midi(mapping.cc, value_to_pass) {
-                changed = true;
+                // Emit event for external systems to react to
+                events.write(MidiParamChanged {
+                    type_name: T::get_type_name().to_string(),
+                    cc: mapping.cc,
+                    value: value_to_pass,
+                });
             }
         }
     }
-
-    // Auto-save when values change via MIDI
-    if changed {
-        if let Err(e) = save_params_to_file(&midi_controller, &*params) {
-            error!("Failed to save MIDI parameters: {}", e);
-        }
-    }
-}
-
-/// Save parameters when UI changes them
-fn save_on_ui_change<T: Resource + MidiControllable>(
-    midi_controller: Res<MidiController>,
-    params: Res<T>,
-) {
-    if params.is_changed() && !params.is_added() {
-        if let Err(e) = save_params_to_file(&midi_controller, &*params) {
-            error!("Failed to save UI parameter changes: {}", e);
-        } else {
-            debug!("Auto-saved {} changes", T::get_type_name());
-        }
-    }
-}
-
-/// Helper function to save parameters to file
-fn save_params_to_file<T: MidiControllable>(
-    midi_controller: &MidiController,
-    params: &T,
-) -> MidiResult<()> {
-    let mut persist_file = midi_controller.load_persist_file()?;
-    let new_data = params.to_persist_data();
-
-    persist_file.set_type_data(T::get_type_name().to_string(), new_data);
-    midi_controller.save_persist_file(&mut persist_file)?;
-
-    Ok(())
 }

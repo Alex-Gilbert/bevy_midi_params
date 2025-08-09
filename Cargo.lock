@@ -937,14 +937,10 @@ dependencies = [
  "bevy",
  "bevy_egui",
  "bevy_midi_params_derive",
- "chrono",
  "egui 0.32.0",
  "inventory",
  "log",
  "midir",
- "ron 0.10.1",
- "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -998,6 +994,18 @@ dependencies = [
  "static_assertions",
  "thiserror 2.0.12",
  "tracing",
+]
+
+[[package]]
+name = "bevy_persist"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "chrono",
+ "log",
+ "ron 0.10.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

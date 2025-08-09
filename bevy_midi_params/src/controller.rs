@@ -1,4 +1,4 @@
-use crate::{MidiError, MidiMapping, MidiPersistFile, MidiResult};
+use crate::{MidiError, MidiMapping, MidiResult};
 use bevy::prelude::*;
 use log::{debug, info};
 use midir::{Ignore, MidiInput, MidiInputConnection};
@@ -12,8 +12,6 @@ pub struct MidiController {
     pub values: HashMap<u8, f32>,
     /// All registered MIDI mappings
     mappings: HashMap<u8, MidiMapping>,
-    /// Path to persistence file
-    persist_file_path: String,
     /// List of registered type names
     registered_types: Vec<&'static str>,
     /// MIDI connection (kept alive)
@@ -25,11 +23,10 @@ pub struct MidiController {
 }
 
 impl MidiController {
-    pub fn new(persist_path: Option<String>, preferred_controller: Option<String>) -> Self {
+    pub fn new(preferred_controller: Option<String>) -> Self {
         Self {
             values: HashMap::new(),
             mappings: HashMap::new(),
-            persist_file_path: persist_path.unwrap_or_else(|| "midi_settings.ron".to_string()),
             registered_types: Vec::new(),
             _connection: None,
             _changed_values: None,
@@ -60,7 +57,7 @@ impl MidiController {
         self.mappings.insert(mapping.cc, mapping);
     }
 
-    /// Register a type name for persistence tracking
+    /// Register a type name for tracking
     pub fn register_type(&mut self, type_name: &'static str) {
         if !self.registered_types.contains(&type_name) {
             self.registered_types.push(type_name);
@@ -71,16 +68,6 @@ impl MidiController {
     /// Get all registered mappings
     pub fn get_mappings(&self) -> &HashMap<u8, MidiMapping> {
         &self.mappings
-    }
-
-    /// Load persistence file
-    pub fn load_persist_file(&self) -> MidiResult<MidiPersistFile> {
-        MidiPersistFile::load_from_file(&self.persist_file_path)
-    }
-
-    /// Save persistence file
-    pub fn save_persist_file(&self, data: &mut MidiPersistFile) -> MidiResult<()> {
-        data.save_to_file(&self.persist_file_path)
     }
 
     /// Connect to MIDI input device
@@ -100,69 +87,93 @@ impl MidiController {
         let in_port = if let Some(ref preferred) = self.preferred_controller {
             in_ports
                 .iter()
-                .find(|port| {
+                .find(|p| {
                     midi_in
-                        .port_name(port)
+                        .port_name(p)
                         .unwrap_or_default()
                         .to_lowercase()
                         .contains(&preferred.to_lowercase())
                 })
                 .or_else(|| in_ports.first())
+                .ok_or(MidiError::NoInputPorts)?
         } else {
-            in_ports.first()
-        }
-        .unwrap();
+            &in_ports[0]
+        };
 
-        let port_name = midi_in.port_name(in_port).unwrap_or("Unknown".to_string());
-        info!("Connecting to MIDI port: {}", port_name);
+        let port_name = midi_in
+            .port_name(in_port)
+            .unwrap_or_else(|_| "Unknown".to_string());
 
-        // Shared values for the callback
-        let raw_values = Arc::new(Mutex::new(HashMap::<u8, f32>::new()));
-        self._changed_values = Some(raw_values.clone());
-        let values_clone = raw_values.clone();
+        info!("Connecting to MIDI input: {}", port_name);
 
+        // Create shared state for the callback
+        let changed_values = Arc::new(Mutex::new(HashMap::new()));
+        let changed_values_clone = changed_values.clone();
+
+        // Connect with a callback that updates our shared state
         let connection = midi_in
             .connect(
                 in_port,
-                "bevy-midi-params",
-                move |_stamp, message, _| {
-                    if message.len() >= 3 && message[0] == 0xB0 {
-                        // Control Change
+                "bevy_midi_input",
+                move |_timestamp, message, _| {
+                    // Parse MIDI CC messages
+                    if message.len() >= 3 && (message[0] & 0xF0) == 0xB0 {
                         let cc = message[1];
-                        let value = message[2] as f32 / 127.0; // Normalize to 0.0-1.0
+                        let value = message[2] as f32 / 127.0;
 
-                        if let Ok(mut values) = values_clone.lock() {
+                        if let Ok(mut values) = changed_values_clone.lock() {
                             values.insert(cc, value);
                         }
 
-                        info!("MIDI CC {}: {:.3}", cc, value);
+                        debug!("MIDI CC {} = {:.2}", cc, value);
                     }
                 },
                 (),
             )
-            .map_err(|e| MidiError::ConnectionFailed(format!("Connection failed: {}", e)))?;
+            .map_err(|e| MidiError::ConnectionFailed(format!("Failed to connect: {}", e)))?;
 
+        // Store the connection to keep it alive
         self._connection = Some(Arc::new(Mutex::new(Some(connection))));
+        self._changed_values = Some(changed_values);
+
+        info!("MIDI connection established to: {}", port_name);
         Ok(())
     }
 
-    /// Update values from MIDI (called by system)
-    pub(crate) fn update_values(&mut self) {
-        let Some(changed_values) = &self._changed_values else {
-            return;
-        };
-
-        if let Ok(mut changed_values_lock) = changed_values.lock() {
-            // Move all values out instead of cloning
-            for (cc, value) in changed_values_lock.drain() {
-                self.values.insert(cc, value);
+    /// Update values from the MIDI connection
+    pub fn update_values(&mut self) {
+        if let Some(ref changed_values) = self._changed_values {
+            if let Ok(mut values) = changed_values.lock() {
+                // Move all changed values into our main values map
+                for (cc, value) in values.drain() {
+                    self.values.insert(cc, value);
+                }
             }
         }
     }
-}
 
-impl Default for MidiController {
-    fn default() -> Self {
-        Self::new(None, None)
+    /// Disconnect MIDI input
+    pub fn disconnect(&mut self) {
+        self._connection = None;
+        self._changed_values = None;
+        info!("MIDI connection closed");
+    }
+
+    /// List available MIDI input ports
+    pub fn list_ports() -> MidiResult<Vec<String>> {
+        let midi_in = MidiInput::new("bevy_midi_params_list").map_err(|e| {
+            MidiError::ConnectionFailed(format!("Failed to create MIDI input: {}", e))
+        })?;
+
+        let ports = midi_in.ports();
+        let mut port_names = Vec::new();
+
+        for port in ports {
+            if let Ok(name) = midi_in.port_name(&port) {
+                port_names.push(name);
+            }
+        }
+
+        Ok(port_names)
     }
 }
