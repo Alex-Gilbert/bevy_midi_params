@@ -2,6 +2,9 @@ use crate::MidiController;
 use bevy::prelude::*;
 use log::{info, warn};
 
+#[cfg(feature = "ui")]
+use bevy_egui::EguiPrimaryContextPass;
+
 /// Main plugin for MIDI parameter integration
 pub struct MidiParamsPlugin {
     /// Whether to auto-connect to MIDI on startup
@@ -67,7 +70,7 @@ impl Plugin for MidiParamsPlugin {
 
         #[cfg(feature = "ui")]
         if self.enable_ui {
-            app.add_systems(Update, crate::midi_control_ui);
+            app.add_systems(EguiPrimaryContextPass, crate::midi_control_ui);
         }
 
         app.add_systems(PreUpdate, update_midi_controller);

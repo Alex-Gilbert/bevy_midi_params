@@ -1,145 +1,172 @@
-//! Basic example showing MIDI parameter control with Bevy.
-//!
-//! This example demonstrates:
-//! - Setting up MIDI parameter control
-//! - Using different control types (ranges and buttons)
-//! - Auto-persistence of parameter values
-//!
-//! Controls (use `aseqdump` to find your controller's CC values):
-//! - CC 16: Player speed (0.0 - 10.0)
-//! - CC 20: Jump height (1.0 - 5.0)
-//! - CC 33: Enable debug mode (button)
-//! - CC 34: Enable physics (button)
-//!
-//! The cube will change color based on the player speed parameter.
-
 use bevy::prelude::*;
-use bevy_midi_params::prelude::*;
+use bevy_midi_params::{MidiControllable, MidiParams, MidiParamsPlugin};
+use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiPrimaryContextPass};
+use egui::Ui;
 
 #[derive(Resource, MidiParams)]
-struct GameSettings {
-    #[midi(16, 0.0..10.0)]
-    pub player_speed: f32,
+struct MeshController {
+    // Integer control - selects which mesh to display (0-4)
+    #[midi(16, 0..4)]
+    pub mesh_index: i32,
 
-    #[midi(20, 1.0..5.0)]
-    pub jump_height: f32,
+    pub prev_mesh_index: usize,
 
-    #[midi(24, button)]
-    pub debug_mode: bool,
+    // Color control - each component gets its own CC
+    #[midi(20)] // red
+    #[midi(21)] // green
+    #[midi(22)] // blue
+    #[midi(23)] // alpha
+    pub mesh_color: LinearRgba,
 
-    #[midi(28, button)]
-    pub physics_enabled: bool,
+    // Vector control - position offset
+    #[midi(24, -5.0..5.0)] // x offset
+    #[midi(25, -5.0..5.0)] // y offset
+    #[midi(26, -5.0..5.0)] // z offset
+    pub position_offset: Vec3,
+
+    // Boolean toggle - visibility
+    #[midi(58)]
+    pub visible: bool,
+
+    // Float range - rotation speed
+    #[midi(19, 0.0..10.0)]
+    pub rotation_speed: f32,
 }
 
-impl Default for GameSettings {
+impl Default for MeshController {
     fn default() -> Self {
         Self {
-            player_speed: 5.0,
-            jump_height: 2.0,
-            debug_mode: false,
-            physics_enabled: true,
+            mesh_index: 0,
+            prev_mesh_index: 0,
+            mesh_color: LinearRgba::rgb(1.0, 0.5, 0.3),
+            position_offset: Vec3::ZERO,
+            visible: true,
+            rotation_speed: 1.0,
         }
     }
 }
+
+#[derive(Component)]
+struct MeshDisplay {
+    meshes: Vec<Handle<Mesh>>,
+}
+
+#[derive(Component)]
+struct RotatingMesh;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_plugins(EguiPlugin::default())
         .add_plugins(
-            MidiParamsPlugin::new()
+            MidiParamsPlugin::default()
                 .with_controller("midi mix")
-                // Note: To enable the built-in UI, add:
-                // .with_ui()
-                // and also add the bevy_egui plugin
-        )
-        .add_systems(Startup, setup_scene)
-        .add_systems(Update, (update_cube_color, display_debug_info))
+                .with_ui(),
+        ) // Add the MIDI plugin
+        .init_resource::<MeshController>() // Initialize our MIDI-controlled resource
+        .add_systems(Startup, setup)
+        .add_systems(Update, (update_mesh_display, rotate_mesh))
         .run();
 }
 
-fn setup_scene(
+fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let cube_mesh = meshes.add(Cuboid::new(2.0, 2.0, 2.0));
-    let material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.7, 0.2, 0.3),
-        ..default()
-    });
-    let material = MeshMaterial3d(material);
-
-    // Spawn a cube that will change based on parameters
-    commands.spawn((
-        Mesh3d(cube_mesh),
-        material,
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        DemoCube,
-    ));
-
-    // Camera
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(-2.5, 4.5, 9.0).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
-    // Light
     commands.spawn((
-        PointLight {
+        DirectionalLight {
+            illuminance: 10_000.0,
             shadows_enabled: true,
             ..default()
         },
-        Transform::from_xyz(4.0, 8.0, 4.0),
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.5, -0.5, 0.0)),
+    ));
+
+    // Create 5 different mesh types
+    let mesh_handles = vec![
+        meshes.add(Cuboid::new(2.0, 2.0, 2.0)),
+        meshes.add(Sphere::new(1.5).mesh().ico(5).unwrap()),
+        meshes.add(Cylinder::new(1.0, 2.0)),
+        meshes.add(Torus::new(1.0, 0.5)),
+        meshes.add(Capsule3d::new(0.5, 2.0)),
+    ];
+
+    commands.spawn((
+        Mesh3d(mesh_handles[0].clone()),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::LinearRgba(LinearRgba::rgb(1.0, 0.5, 0.3)),
+            ..default()
+        })),
+        Transform::from_xyz(0.0, 0.0, 0.0),
+        MeshDisplay {
+            meshes: mesh_handles,
+        },
+        RotatingMesh,
     ));
 }
 
-#[derive(Component)]
-struct DemoCube;
-
-fn update_cube_color(
-    settings: Res<GameSettings>,
+fn update_mesh_display(
+    mut controller: ResMut<MeshController>,
+    mut query: Query<(
+        &mut Mesh3d,
+        &mut Transform,
+        &mut Visibility,
+        &MeshMaterial3d<StandardMaterial>,
+        &MeshDisplay,
+    )>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    cube_query: Query<&MeshMaterial3d<StandardMaterial>, With<DemoCube>>,
 ) {
-    if !settings.is_changed() {
-        return;
-    }
+    for (mut mesh, mut transform, mut visibility, mat_handle, display) in &mut query {
+        // Update mesh based on index (wraps around if out of bounds)
+        let index = (controller.mesh_index as usize) % display.meshes.len();
+        if controller.prev_mesh_index != index {
+            mesh.0 = display.meshes[index].clone();
+            controller.prev_mesh_index = index;
+        }
 
-    for material_handle in cube_query.iter() {
-        if let Some(material) = materials.get_mut(material_handle) {
-            // Color changes based on player speed
-            let speed_factor = settings.player_speed / 10.0;
-            material.base_color = Color::srgb(speed_factor, 1.0 - speed_factor, 0.5);
+        // Update position offset
+        transform.translation = controller.position_offset;
 
-            // Emission based on jump height
-            let jump_factor = (settings.jump_height - 1.0) / 4.0;
-            material.emissive = Color::srgb(jump_factor * 0.5, 0.0, jump_factor * 0.5).into();
+        // Update visibility
+        *visibility = if controller.visible {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+
+        // Update material color
+        if let Some(material) = materials.get_mut(&mat_handle.0) {
+            material.base_color = Color::LinearRgba(controller.mesh_color);
         }
     }
 }
 
-fn display_debug_info(settings: Res<GameSettings>, mut gizmos: Gizmos) {
-    if settings.debug_mode {
-        // Draw debug gizmos
-        gizmos.cuboid(
-            Transform::from_xyz(0.0, 0.0, 0.0),
-            Color::srgb(0.0, 1.0, 0.0),
-        );
-
-        // Print values to console when they change
-        if settings.is_changed() {
-            println!("🎮 Game Settings Updated:");
-            println!("  Player Speed: {:.2}", settings.player_speed);
-            println!("  Jump Height: {:.2}", settings.jump_height);
-            println!("  Debug Mode: {}", settings.debug_mode);
-            println!(
-                "  Physics: {}",
-                if settings.physics_enabled {
-                    "ON"
-                } else {
-                    "OFF"
-                }
-            );
-        }
+fn rotate_mesh(
+    time: Res<Time>,
+    controller: Res<MeshController>,
+    mut query: Query<&mut Transform, With<RotatingMesh>>,
+) {
+    for mut transform in &mut query {
+        transform.rotate_y(controller.rotation_speed * time.delta_secs());
     }
 }
+
+// Usage in main app:
+// 1. Connect a MIDI controller
+// 2. Map CC 16 to switch between meshes (cube, sphere, cylinder, torus, capsule)
+// 3. Map CC 20-23 to control RGB color
+// 4. Map CC 30-32 to move the mesh in 3D space
+// 5. Map CC 40 to toggle visibility
+// 6. Map CC 50 to control rotation speed
+
+// The macro automatically generates:
+// - update_from_midi() method that handles CC messages
+// - get_midi_mappings() for the plugin to know what to listen for
+// - render_ui() for an optional egui interface
+// - Proper type handling for i32, Vec3, LinearRgba, bool, and f32
