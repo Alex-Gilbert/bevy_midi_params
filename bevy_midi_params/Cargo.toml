@@ -16,14 +16,11 @@ authors = ["Your Name <your.email@example.com>"]
 bevy = { workspace = true, features = ["bevy_asset", "bevy_render", "bevy_core_pipeline"] }
 bevy_midi_params_derive = { version = "0.1.0", path = "../bevy_midi_params_derive" }
 midir = { workspace = true }
-egui = { workspace = true, optional = true }
-bevy_egui = { workspace = true, optional = true }
 inventory = { workspace = true }
 log = { workspace = true }
 
 [features]
-default = ["ui"]
-ui = ["egui", "bevy_egui"]
+default = []
 
 [dev-dependencies]
 bevy = { workspace = true, features = ["default"] }

@@ -1,7 +1,5 @@
 use bevy::prelude::*;
 use bevy_midi_params::{MidiControllable, MidiParams, MidiParamsPlugin};
-use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiPrimaryContextPass};
-use egui::Ui;
 
 #[derive(Resource, MidiParams)]
 struct MeshController {
@@ -57,11 +55,9 @@ struct RotatingMesh;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(EguiPlugin::default())
         .add_plugins(
             MidiParamsPlugin::default()
-                .with_controller("midi mix")
-                .with_ui(),
+                .with_controller("midi mix"),
         ) // Add the MIDI plugin
         .init_resource::<MeshController>() // Initialize our MIDI-controlled resource
         .add_systems(Startup, setup)
@@ -168,5 +164,4 @@ fn rotate_mesh(
 // The macro automatically generates:
 // - update_from_midi() method that handles CC messages
 // - get_midi_mappings() for the plugin to know what to listen for
-// - render_ui() for an optional egui interface
 // - Proper type handling for i32, Vec3, LinearRgba, bool, and f32

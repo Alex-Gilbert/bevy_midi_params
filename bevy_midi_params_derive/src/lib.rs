@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Error, Fields, Result as SynResult};
 
 mod utils;
-use utils::{determine_control_type, parse_midi_attributes, ControlType, MidiMapping, RangeSpec};
+use utils::{determine_control_type, parse_midi_attributes, ControlType, RangeSpec};
 
 /// Derive macro for MIDI parameter mapping
 #[proc_macro_derive(MidiParams, attributes(midi))]
@@ -40,7 +40,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
 
     let mut midi_mappings = Vec::new();
     let mut midi_updates = Vec::new();
-    let mut ui_controls = Vec::new();
 
     for field in fields {
         let field_name = field.ident.as_ref().unwrap();
@@ -76,24 +75,14 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         }
                     });
 
-                    // UI control
-                    let display_name = field_name_str.replace('_', " ");
-                    ui_controls.push(quote! {
-                        ui.horizontal(|ui| {
-                            ui.label(format!("{} (CC{}):", #display_name, #cc));
-                            ui_changed |= ui.add(egui::Slider::new(&mut self.#field_name, #min..=#max)).changed();
-                        });
-                    });
+
                 }
                 ControlType::VectorRange { components } => {
                     // Multiple component controls for vector types
                     let component_names = ["x", "y", "z", "w"];
-                    let display_name = field_name_str.replace('_', " ");
 
-                    // Add a group label for the vector
-                    ui_controls.push(quote! {
-                        ui.label(format!("{}:", #display_name));
-                    });
+
+
 
                     for (i, (cc, min, max)) in components.iter().enumerate() {
                         let comp_name = component_names[i];
@@ -116,13 +105,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                             }
                         });
 
-                        // UI control for this component
-                        ui_controls.push(quote! {
-                            ui.horizontal(|ui| {
-                                ui.label(format!("  {} (CC{}):", #comp_name, #cc));
-                                ui_changed |= ui.add(egui::Slider::new(&mut self.#field_name[#idx], #min..=#max)).changed();
-                            });
-                        });
+
                     }
                 }
                 ControlType::Toggle => {
@@ -144,14 +127,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         }
                     });
 
-                    // UI control
-                    let display_name = field_name_str.replace('_', " ");
-                    ui_controls.push(quote! {
-                        ui.horizontal(|ui| {
-                            ui.label(format!("{} (CC{}):", #display_name, #cc));
-                            ui_changed |= ui.checkbox(&mut self.#field_name, "").changed();
-                        });
-                    });
+
                 }
                 ControlType::IntRange { min, max } => {
                     let mapping = &mappings[0];
@@ -173,14 +149,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         }
                     });
 
-                    // UI control
-                    let display_name = field_name_str.replace('_', " ");
-                    ui_controls.push(quote! {
-                        ui.horizontal(|ui| {
-                            ui.label(format!("{} (CC{}):", #display_name, #cc));
-                            ui_changed |= ui.add(egui::Slider::new(&mut self.#field_name, #min..=#max)).changed();
-                        });
-                    });
+
                 }
                 ControlType::LinearRgba => {
                     // LinearRgba has red, green, blue, alpha fields
@@ -191,7 +160,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         ));
                     }
 
-                    let display_name = field_name_str.replace('_', " ");
+
                     let component_idents = [
                         quote::format_ident!("red"),
                         quote::format_ident!("green"),
@@ -200,9 +169,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                     ];
                     let component_labels = ["r", "g", "b", "a"];
 
-                    ui_controls.push(quote! {
-                        ui.label(format!("{} (LinearRgba):", #display_name));
-                    });
+
 
                     for (i, mapping) in mappings.iter().enumerate() {
                         let cc = mapping.cc;
@@ -235,13 +202,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                             }
                         });
 
-                        // UI control
-                        ui_controls.push(quote! {
-                            ui.horizontal(|ui| {
-                                ui.label(format!("  {} (CC{}):", #comp_label, #cc));
-                                ui_changed |= ui.add(egui::Slider::new(&mut self.#field_name.#comp_ident, #min..=#max)).changed();
-                            });
-                        });
+
                     }
                 }
                 ControlType::Srgba => {
@@ -253,7 +214,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         ));
                     }
 
-                    let display_name = field_name_str.replace('_', " ");
+
                     let component_idents = [
                         quote::format_ident!("red"),
                         quote::format_ident!("green"),
@@ -262,9 +223,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                     ];
                     let component_labels = ["r", "g", "b", "a"];
 
-                    ui_controls.push(quote! {
-                        ui.label(format!("{} (Srgba):", #display_name));
-                    });
+
 
                     for (i, mapping) in mappings.iter().enumerate() {
                         let cc = mapping.cc;
@@ -297,13 +256,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                             }
                         });
 
-                        // UI control
-                        ui_controls.push(quote! {
-                            ui.horizontal(|ui| {
-                                ui.label(format!("  {} (CC{}):", #comp_label, #cc));
-                                ui_changed |= ui.add(egui::Slider::new(&mut self.#field_name.#comp_ident, #min..=#max)).changed();
-                            });
-                        });
+
                     }
                 }
                 ControlType::Hsla => {
@@ -315,7 +268,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         ));
                     }
 
-                    let display_name = field_name_str.replace('_', " ");
+
                     let component_idents = [
                         quote::format_ident!("hue"),
                         quote::format_ident!("saturation"),
@@ -324,9 +277,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                     ];
                     let component_labels = ["h", "s", "l", "a"];
 
-                    ui_controls.push(quote! {
-                        ui.label(format!("{} (Hsla):", #display_name));
-                    });
+
 
                     for (i, mapping) in mappings.iter().enumerate() {
                         let cc = mapping.cc;
@@ -363,13 +314,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                             }
                         });
 
-                        // UI control
-                        ui_controls.push(quote! {
-                            ui.horizontal(|ui| {
-                                ui.label(format!("  {} (CC{}):", #comp_label, #cc));
-                                ui_changed |= ui.add(egui::Slider::new(&mut self.#field_name.#comp_ident, #min..=#max)).changed();
-                            });
-                        });
+
                     }
                 }
                 ControlType::Hsva => {
@@ -381,7 +326,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         ));
                     }
 
-                    let display_name = field_name_str.replace('_', " ");
+
                     let component_idents = [
                         quote::format_ident!("hue"),
                         quote::format_ident!("saturation"),
@@ -390,9 +335,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                     ];
                     let component_labels = ["h", "s", "v", "a"];
 
-                    ui_controls.push(quote! {
-                        ui.label(format!("{} (Hsva):", #display_name));
-                    });
+
 
                     for (i, mapping) in mappings.iter().enumerate() {
                         let cc = mapping.cc;
@@ -429,13 +372,7 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                             }
                         });
 
-                        // UI control
-                        ui_controls.push(quote! {
-                            ui.horizontal(|ui| {
-                                ui.label(format!("  {} (CC{}):", #comp_label, #cc));
-                                ui_changed |= ui.add(egui::Slider::new(&mut self.#field_name.#comp_ident, #min..=#max)).changed();
-                            });
-                        });
+
                     }
                 }
             }
@@ -457,20 +394,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
 
             fn get_midi_mappings() -> Vec<bevy_midi_params::MidiMapping> {
                 vec![#(#midi_mappings),*]
-            }
-
-            #[cfg(feature = "ui")]
-            fn render_ui(&mut self, ui: &mut egui::Ui) -> bool {
-                let mut ui_changed = false;
-                ui.heading(#type_name_str);
-                ui.separator();
-                #(#ui_controls)*
-                ui_changed
-            }
-
-            #[cfg(not(feature = "ui"))]
-            fn render_ui(&mut self, _ui: &mut ()) -> bool {
-                false
             }
 
             fn get_type_name() -> &'static str {

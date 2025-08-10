@@ -2,18 +2,12 @@ use crate::MidiController;
 use bevy::prelude::*;
 use log::{info, warn};
 
-#[cfg(feature = "ui")]
-use bevy_egui::EguiPrimaryContextPass;
-
 /// Main plugin for MIDI parameter integration
 pub struct MidiParamsPlugin {
     /// Whether to auto-connect to MIDI on startup
     pub auto_connect: bool,
     /// Preferred MIDI controller name (partial match)
     pub preferred_controller: Option<String>,
-    /// Whether to enable the built-in UI (requires bevy_egui)
-    #[cfg(feature = "ui")]
-    pub enable_ui: bool,
 }
 
 impl Default for MidiParamsPlugin {
@@ -21,8 +15,6 @@ impl Default for MidiParamsPlugin {
         Self {
             auto_connect: true,
             preferred_controller: None,
-            #[cfg(feature = "ui")]
-            enable_ui: false,  // Default to false, user must opt-in
         }
     }
 }
@@ -44,13 +36,6 @@ impl MidiParamsPlugin {
         self.auto_connect = false;
         self
     }
-    
-    /// Enable the built-in UI (requires bevy_egui plugin to be added)
-    #[cfg(feature = "ui")]
-    pub fn with_ui(mut self) -> Self {
-        self.enable_ui = true;
-        self
-    }
 }
 
 impl Plugin for MidiParamsPlugin {
@@ -66,11 +51,6 @@ impl Plugin for MidiParamsPlugin {
 
         if self.auto_connect {
             app.add_systems(Startup, setup_midi_input);
-        }
-
-        #[cfg(feature = "ui")]
-        if self.enable_ui {
-            app.add_systems(EguiPrimaryContextPass, crate::midi_control_ui);
         }
 
         app.add_systems(PreUpdate, update_midi_controller);
@@ -93,13 +73,6 @@ pub trait MidiControllable {
 
     /// Get all MIDI mappings for this type
     fn get_midi_mappings() -> Vec<crate::MidiMapping>;
-
-    /// Render UI controls (egui or unit type if no UI)
-    #[cfg(feature = "ui")]
-    fn render_ui(&mut self, ui: &mut egui::Ui) -> bool;
-
-    #[cfg(not(feature = "ui"))]
-    fn render_ui(&mut self, ui: &mut ()) -> bool;
 
     /// Get type name
     fn get_type_name() -> &'static str;

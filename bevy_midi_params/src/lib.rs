@@ -39,18 +39,12 @@ mod mapping;
 mod plugin;
 mod error;
 
-#[cfg(feature = "ui")]
-mod ui;
-
 // Re-export everything users need
 pub use bevy_midi_params_derive::MidiParams;
 pub use controller::*;
 pub use mapping::*;
 pub use plugin::*;
 pub use error::*;
-
-#[cfg(feature = "ui")]
-pub use ui::*;
 
 // For auto-registration
 pub use inventory;
@@ -64,7 +58,4 @@ pub mod prelude {
         MidiController,
         MidiError,
     };
-    
-    #[cfg(feature = "ui")]
-    pub use crate::ui::*;
 }
