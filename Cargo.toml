@@ -3,6 +3,7 @@ members = [
     "bevy_midi_params",
     "bevy_midi_params_derive",
     "bevy_persist",
+    "bevy_persist_derive",
 ]
 resolver = "2"
 

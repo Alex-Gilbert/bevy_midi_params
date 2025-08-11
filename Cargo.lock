@@ -911,11 +911,22 @@ name = "bevy_persist"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_persist_derive",
  "chrono",
+ "inventory",
  "log",
  "ron 0.10.1",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "bevy_persist_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

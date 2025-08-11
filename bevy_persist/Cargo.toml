@@ -16,6 +16,8 @@ serde_json = { workspace = true }
 ron = { workspace = true }
 log = { workspace = true }
 chrono = { workspace = true }
+inventory = { workspace = true }
+bevy_persist_derive = { path = "../bevy_persist_derive" }
 
 [dev-dependencies]
 bevy = { workspace = true, features = ["default"] }
@@ -23,3 +25,7 @@ bevy = { workspace = true, features = ["default"] }
 [[example]]
 name = "basic"
 path = "examples/basic.rs"
+
+[[example]]
+name = "advanced"
+path = "examples/advanced.rs"

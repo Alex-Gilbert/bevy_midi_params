@@ -10,11 +10,16 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+// Re-export the derive macro
+pub use bevy_persist_derive::Persist;
+
+// For auto-registration
+pub use inventory;
 
 pub mod prelude {
     pub use crate::{
-        AutoPersist, PersistPlugin, Persistable, PersistData, PersistFile,
-        PersistError, PersistResult,
+        Persist, PersistPlugin, Persistable, PersistData, PersistFile,
+        PersistError, PersistResult, PersistManager,
     };
 }
 
@@ -156,33 +161,21 @@ pub trait Persistable: Resource + Serialize + for<'de> Deserialize<'de> {
     fn type_name() -> &'static str;
     
     /// Convert to persistence data
-    fn to_persist_data(&self) -> PersistData {
-        let mut data = PersistData::new();
-        if let Ok(json_value) = serde_json::to_value(self) {
-            if let serde_json::Value::Object(map) = json_value {
-                for (key, value) in map {
-                    data.values.insert(key, value);
-                }
-            }
-        }
-        data
-    }
+    fn to_persist_data(&self) -> PersistData;
     
     /// Load from persistence data
-    fn from_persist_data(&mut self, data: &PersistData) {
-        // This is a default implementation that tries to deserialize the whole object
-        // Types can override this for custom behavior
-        if let Ok(value) = serde_json::to_value(&data.values) {
-            if let Ok(new_self) = serde_json::from_value(value) {
-                *self = new_self;
-            }
-        }
-    }
+    fn from_persist_data(&mut self, data: &PersistData);
 }
 
-/// Marker component for resources that should auto-persist
-#[derive(Component)]
-pub struct AutoPersist;
+/// Registration data for auto-discovered Persist types
+#[derive(Debug)]
+pub struct PersistRegistration {
+    pub type_name: &'static str,
+    pub auto_save: bool,
+    pub register_fn: fn(&mut App),
+}
+
+inventory::collect!(PersistRegistration);
 
 /// Resource that manages persistence
 #[derive(Resource)]
@@ -191,8 +184,10 @@ pub struct PersistManager {
     pub file_path: PathBuf,
     /// Cached persist file
     persist_file: PersistFile,
-    /// Whether auto-save is enabled
+    /// Whether auto-save is enabled globally
     pub auto_save: bool,
+    /// Track which types have auto-save enabled
+    auto_save_types: HashMap<String, bool>,
 }
 
 impl PersistManager {
@@ -208,6 +203,7 @@ impl PersistManager {
             file_path,
             persist_file,
             auto_save: true,
+            auto_save_types: HashMap::new(),
         }
     }
     
@@ -226,6 +222,14 @@ impl PersistManager {
     
     pub fn get_persist_file_mut(&mut self) -> &mut PersistFile {
         &mut self.persist_file
+    }
+    
+    pub fn is_auto_save_enabled(&self, type_name: &str) -> bool {
+        self.auto_save && self.auto_save_types.get(type_name).copied().unwrap_or(true)
+    }
+    
+    pub fn set_type_auto_save(&mut self, type_name: String, enabled: bool) {
+        self.auto_save_types.insert(type_name, enabled);
     }
 }
 
@@ -267,36 +271,33 @@ impl Plugin for PersistPlugin {
         
         app.insert_resource(manager);
         
-        if self.auto_save {
-            app.add_systems(Update, auto_save_system);
+        // Auto-register all Persist types that have been defined
+        for registration in inventory::iter::<PersistRegistration> {
+            info!("Auto-registering persist type: {}", registration.type_name);
+            (registration.register_fn)(app);
         }
     }
 }
 
-/// System that auto-saves changed resources
-fn auto_save_system(
-    _manager: Res<PersistManager>,
-    // We'll need to add specific systems for each persistable type
-    // This is where the derive macro will come in handy
-) {
-    // This will be implemented per-type
-}
-
-/// Helper macro to register a persistable resource
-#[macro_export]
-macro_rules! register_persistable {
-    ($app:expr, $type:ty) => {
-        $app.add_systems(
-            Update,
-            $crate::persist_system::<$type>
-        );
-        
-        // Load initial values on startup
-        $app.add_systems(
-            Startup,
-            $crate::load_persisted::<$type>
-        );
-    };
+/// Register a Persist type with the system
+pub fn register_persist_type<T: Resource + Persistable + Default>(app: &mut App, auto_save: bool) {
+    let type_name = T::type_name();
+    
+    let world = app.world_mut();
+    
+    // Ensure resource exists
+    if !world.contains_resource::<T>() {
+        world.init_resource::<T>();
+    }
+    
+    // Set auto-save preference for this type
+    if let Some(mut manager) = world.get_resource_mut::<PersistManager>() {
+        manager.set_type_auto_save(type_name.to_string(), auto_save);
+    }
+    
+    // Add systems for this type
+    app.add_systems(Startup, load_persisted::<T>);
+    app.add_systems(Update, persist_system::<T>);
 }
 
 /// Generic system to persist a resource when it changes
@@ -304,14 +305,18 @@ pub fn persist_system<T: Persistable>(
     mut manager: ResMut<PersistManager>,
     resource: Res<T>,
 ) {
-    if resource.is_changed() && !resource.is_added() && manager.auto_save {
-        let data = resource.to_persist_data();
-        manager.get_persist_file_mut().set_type_data(T::type_name().to_string(), data);
+    if resource.is_changed() && !resource.is_added() {
+        let type_name = T::type_name();
         
-        if let Err(e) = manager.save() {
-            error!("Failed to auto-save {}: {}", T::type_name(), e);
-        } else {
-            debug!("Auto-saved {}", T::type_name());
+        if manager.is_auto_save_enabled(type_name) {
+            let data = resource.to_persist_data();
+            manager.get_persist_file_mut().set_type_data(type_name.to_string(), data);
+            
+            if let Err(e) = manager.save() {
+                error!("Failed to auto-save {}: {}", type_name, e);
+            } else {
+                debug!("Auto-saved {}", type_name);
+            }
         }
     }
 }

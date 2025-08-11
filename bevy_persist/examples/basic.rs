@@ -2,24 +2,17 @@ use bevy::prelude::*;
 use bevy_persist::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Resource, Default, Serialize, Deserialize)]
+#[derive(Resource, Default, Serialize, Deserialize, Persist)]
 struct GameSettings {
     pub volume: f32,
     pub difficulty: u32,
     pub player_name: String,
 }
 
-impl Persistable for GameSettings {
-    fn type_name() -> &'static str {
-        "GameSettings"
-    }
-}
-
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(PersistPlugin::new("game_settings.ron"))
-        .init_resource::<GameSettings>()
         .add_systems(Startup, setup)
         .add_systems(Update, update_settings)
         .run();
