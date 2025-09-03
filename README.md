@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/bevy_midi_params.svg)](https://crates.io/crates/bevy_midi_params)
 [![Docs.rs](https://docs.rs/bevy_midi_params/badge.svg)](https://docs.rs/bevy_midi_params)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/yourusername/bevy_midi_params#license)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](https://github.com/Alex-Gilbert/bevy_midi_params#license)
 
 **Hardware MIDI controller integration for live parameter tweaking in Bevy games.**
 
