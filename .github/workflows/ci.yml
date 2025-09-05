@@ -104,7 +104,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.80.0  # Updated for Bevy 0.16 requirements
+      - uses: dtolnay/rust-toolchain@1.100.0  # Updated for Bevy 0.16 requirements
       - uses: Swatinem/rust-cache@v2
       - name: Check MSRV
         run: cargo check --all-features --workspace
