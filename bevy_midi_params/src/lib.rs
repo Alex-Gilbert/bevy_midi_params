@@ -5,15 +5,15 @@
 //! ## Quick Start
 //!
 //! ```rust,no_run
-//! use bevy::prelude::*;
-//! use bevy_midi_params::prelude::*;
-//!
+//! # use bevy::prelude::*;
+//! # use bevy_midi_params::prelude::*;
+//! #
 //! #[derive(Resource, MidiParams)]
 //! struct GameSettings {
 //!     #[midi(1, 0.0..1.0)]
 //!     pub player_speed: f32,
 //!     
-//!     #[midi(2, button)]
+//!     #[midi(33)]
 //!     pub debug_mode: bool,
 //! }
 //!
@@ -26,36 +26,30 @@
 //!     }
 //! }
 //!
-//! fn main() {
-//!     App::new()
-//!         .add_plugins(DefaultPlugins)
-//!         .add_plugins(MidiParamsPlugin::default())
-//!         .run();
-//! }
+//! # fn main() {
+//! App::new()
+//!     .add_plugins(DefaultPlugins)
+//!     .add_plugins(MidiParamsPlugin::default())
+//!     .run();
+//! # }
 //! ```
 
 mod controller;
+mod error;
 mod mapping;
 mod plugin;
-mod error;
 
 // Re-export everything users need
 pub use bevy_midi_params_derive::MidiParams;
 pub use controller::*;
+pub use error::*;
 pub use mapping::*;
 pub use plugin::*;
-pub use error::*;
 
 // For auto-registration
 pub use inventory;
 
 /// Prelude module for easy imports
 pub mod prelude {
-    pub use crate::{
-        MidiParams,
-        MidiParamsPlugin,
-        MidiMapping,
-        MidiController,
-        MidiError,
-    };
+    pub use crate::{MidiController, MidiError, MidiMapping, MidiParams, MidiParamsPlugin};
 }

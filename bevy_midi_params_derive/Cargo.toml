@@ -1,11 +1,17 @@
 [package]
 name = "bevy_midi_params_derive"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Derive macros for bevy_midi_params"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/Alex-Gilbert/bevy_midi_params"
-authors = ["Alex Gilbert"]
+documentation = "https://docs.rs/bevy_midi_params_derive"
+readme = "README.md"
+keywords = ["bevy", "midi", "proc-macro"]
+categories = ["game-development"]
 
 [lib]
 proc-macro = true

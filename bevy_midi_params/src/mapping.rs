@@ -33,7 +33,7 @@ impl MidiMapping {
             max_value: max,
         }
     }
-    
+
     /// Create a new button mapping
     pub fn button(cc: u8, field_name: impl Into<String>) -> Self {
         Self {
@@ -44,12 +44,18 @@ impl MidiMapping {
             max_value: 1.0,
         }
     }
-    
+
     /// Scale a normalized MIDI value (0.0-1.0) to this mapping's range
     pub fn scale_value(&self, normalized: f32) -> f32 {
         match self.control_type {
             ControlType::Range { min, max } => min + normalized * (max - min),
-            ControlType::Button => if normalized > 0.5 { 1.0 } else { 0.0 },
+            ControlType::Button => {
+                if normalized > 0.5 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
         }
     }
 }

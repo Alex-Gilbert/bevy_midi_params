@@ -1,19 +1,20 @@
 [package]
 name = "bevy_midi_params"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "Hardware MIDI controller integration for live parameter tweaking in Bevy games"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/Alex-Gilbert/bevy_midi_params"
-homepage = "https://github.com/Alex-Gilbert/bevy_midi_params"
 documentation = "https://docs.rs/bevy_midi_params"
 readme = "README.md"
 keywords = ["bevy", "midi", "controller", "tweaking", "development"]
 categories = ["game-development", "multimedia::audio"]
-authors = ["Alex Gilbert"]
 
 [dependencies]
-bevy = { workspace = true, features = ["bevy_asset", "bevy_render", "bevy_core_pipeline"] }
+bevy = { workspace = true }
 bevy_midi_params_derive = { version = "0.1.0", path = "../bevy_midi_params_derive" }
 midir = { workspace = true }
 inventory = { workspace = true }

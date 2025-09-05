@@ -5,6 +5,15 @@ members = [
 ]
 resolver = "2"
 
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75.0"
+authors = ["Alex Gilbert"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Alex-Gilbert/bevy_midi_params"
+homepage = "https://github.com/Alex-Gilbert/bevy_midi_params"
+
 [workspace.dependencies]
 bevy = { version = "0.16.1", default-features = false }
 midir = "0.10"

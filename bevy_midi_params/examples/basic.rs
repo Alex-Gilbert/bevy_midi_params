@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_midi_params::{MidiControllable, MidiParams, MidiParamsPlugin};
+use bevy_midi_params::{MidiParams, MidiParamsPlugin};
 
 #[derive(Resource, MidiParams)]
 struct MeshController {
@@ -55,10 +55,7 @@ struct RotatingMesh;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(
-            MidiParamsPlugin::default()
-                .with_controller("midi mix"),
-        ) // Add the MIDI plugin
+        .add_plugins(MidiParamsPlugin::default().with_controller("midi mix")) // Add the MIDI plugin
         .init_resource::<MeshController>() // Initialize our MIDI-controlled resource
         .add_systems(Startup, setup)
         .add_systems(Update, (update_mesh_display, rotate_mesh))

@@ -74,15 +74,10 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                             }
                         }
                     });
-
-
                 }
                 ControlType::VectorRange { components } => {
                     // Multiple component controls for vector types
                     let component_names = ["x", "y", "z", "w"];
-
-
-
 
                     for (i, (cc, min, max)) in components.iter().enumerate() {
                         let comp_name = component_names[i];
@@ -104,8 +99,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                                 }
                             }
                         });
-
-
                     }
                 }
                 ControlType::Toggle => {
@@ -126,8 +119,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                             }
                         }
                     });
-
-
                 }
                 ControlType::IntRange { min, max } => {
                     let mapping = &mappings[0];
@@ -148,8 +139,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                             }
                         }
                     });
-
-
                 }
                 ControlType::LinearRgba => {
                     // LinearRgba has red, green, blue, alpha fields
@@ -160,7 +149,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         ));
                     }
 
-
                     let component_idents = [
                         quote::format_ident!("red"),
                         quote::format_ident!("green"),
@@ -168,8 +156,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         quote::format_ident!("alpha"),
                     ];
                     let component_labels = ["r", "g", "b", "a"];
-
-
 
                     for (i, mapping) in mappings.iter().enumerate() {
                         let cc = mapping.cc;
@@ -201,8 +187,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                                 }
                             }
                         });
-
-
                     }
                 }
                 ControlType::Srgba => {
@@ -214,7 +198,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         ));
                     }
 
-
                     let component_idents = [
                         quote::format_ident!("red"),
                         quote::format_ident!("green"),
@@ -222,8 +205,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         quote::format_ident!("alpha"),
                     ];
                     let component_labels = ["r", "g", "b", "a"];
-
-
 
                     for (i, mapping) in mappings.iter().enumerate() {
                         let cc = mapping.cc;
@@ -255,8 +236,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                                 }
                             }
                         });
-
-
                     }
                 }
                 ControlType::Hsla => {
@@ -268,7 +247,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         ));
                     }
 
-
                     let component_idents = [
                         quote::format_ident!("hue"),
                         quote::format_ident!("saturation"),
@@ -276,8 +254,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         quote::format_ident!("alpha"),
                     ];
                     let component_labels = ["h", "s", "l", "a"];
-
-
 
                     for (i, mapping) in mappings.iter().enumerate() {
                         let cc = mapping.cc;
@@ -313,8 +289,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                                 }
                             }
                         });
-
-
                     }
                 }
                 ControlType::Hsva => {
@@ -326,7 +300,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         ));
                     }
 
-
                     let component_idents = [
                         quote::format_ident!("hue"),
                         quote::format_ident!("saturation"),
@@ -334,8 +307,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                         quote::format_ident!("alpha"),
                     ];
                     let component_labels = ["h", "s", "v", "a"];
-
-
 
                     for (i, mapping) in mappings.iter().enumerate() {
                         let cc = mapping.cc;
@@ -371,8 +342,6 @@ fn impl_midi_params(input: &DeriveInput) -> SynResult<proc_macro2::TokenStream> 
                                 }
                             }
                         });
-
-
                     }
                 }
             }

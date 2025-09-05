@@ -48,7 +48,7 @@ struct GameSettings {
     #[midi(3, -1.0..1.0)]         // Knob 3: Camera shake
     pub camera_shake: f32,
     
-    #[midi(33, button)]           // Button 1: Enable debug mode
+    #[midi(33)]                   // Button 1: Enable debug mode
     pub debug_mode: bool,
 }
 
@@ -122,7 +122,7 @@ struct MyControls {
     #[midi(7, 0.0..1.0)]     // CC 7 from aseqdump  
     pub volume: f32,
     
-    #[midi(64, button)]      // CC 64 button from aseqdump
+    #[midi(64)]              // CC 64 button from aseqdump
     pub enabled: bool,
 }
 ```

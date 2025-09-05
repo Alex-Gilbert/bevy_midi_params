@@ -21,7 +21,7 @@ struct GameSettings {
     #[midi(3, -1.0..1.0)]
     pub camera_shake: f32,
     
-    #[midi(16, button)]
+    #[midi(16)]
     pub debug_mode: bool,
     
     // Non-MIDI fields are still persisted

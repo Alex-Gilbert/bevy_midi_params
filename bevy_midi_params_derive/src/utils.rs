@@ -1,7 +1,4 @@
-use syn::{
-    Error, Expr, Field, Lit, Type, TypePath,
-    Result as SynResult,
-};
+use syn::{Error, Expr, Field, Lit, Result as SynResult, Type, TypePath};
 
 #[derive(Debug, Clone)]
 pub enum ControlType {
@@ -9,10 +6,10 @@ pub enum ControlType {
     IntRange { min: i32, max: i32 },
     Toggle,
     VectorRange { components: Vec<(u8, f32, f32)> }, // Vec of (cc, min, max) for each component
-    LinearRgba,  // bevy::color::LinearRgba
-    Srgba,       // bevy::color::Srgba
-    Hsla,        // bevy::color::Hsla
-    Hsva,        // bevy::color::Hsva
+    LinearRgba,                                      // bevy::color::LinearRgba
+    Srgba,                                           // bevy::color::Srgba
+    Hsla,                                            // bevy::color::Hsla
+    Hsva,                                            // bevy::color::Hsva
 }
 
 #[derive(Debug, Clone)]
@@ -30,42 +27,42 @@ pub struct MidiMapping {
 /// Parse all #[midi(...)] attributes from a field
 pub fn parse_midi_attributes(field: &Field) -> SynResult<Vec<MidiMapping>> {
     let mut mappings = Vec::new();
-    
+
     for attr in &field.attrs {
         if attr.path().is_ident("midi") {
             let mapping = attr.parse_args_with(|input: syn::parse::ParseStream| {
                 // Parse CC number
                 let cc: syn::LitInt = input.parse()?;
                 let cc_value = cc.base10_parse::<u8>()?;
-                
+
                 // Check if there's a range specification
                 let range = if input.peek(syn::Token![,]) {
                     input.parse::<syn::Token![,]>()?;
-                    
+
                     // Parse range expression
                     let expr: Expr = input.parse()?;
                     Some(parse_range_expr(&expr)?)
                 } else {
                     None
                 };
-                
+
                 Ok(MidiMapping {
                     cc: cc_value,
                     range,
                 })
             })?;
-            
+
             mappings.push(mapping);
         }
     }
-    
+
     Ok(mappings)
 }
 
 /// Determine the control type based on the field type and mappings
 pub fn determine_control_type(ty: &Type, mappings: &[MidiMapping]) -> SynResult<ControlType> {
     let type_name = get_type_name(ty);
-    
+
     // Check for Bevy color types
     if let Some(ref name) = type_name {
         match name.as_str() {
@@ -73,7 +70,7 @@ pub fn determine_control_type(ty: &Type, mappings: &[MidiMapping]) -> SynResult<
                 if mappings.len() != 4 {
                     return Err(Error::new_spanned(
                         ty,
-                        "LinearRgba requires exactly 4 #[midi] attributes (r, g, b, a)"
+                        "LinearRgba requires exactly 4 #[midi] attributes (r, g, b, a)",
                     ));
                 }
                 return Ok(ControlType::LinearRgba);
@@ -82,7 +79,7 @@ pub fn determine_control_type(ty: &Type, mappings: &[MidiMapping]) -> SynResult<
                 if mappings.len() != 4 {
                     return Err(Error::new_spanned(
                         ty,
-                        "Srgba requires exactly 4 #[midi] attributes (r, g, b, a)"
+                        "Srgba requires exactly 4 #[midi] attributes (r, g, b, a)",
                     ));
                 }
                 return Ok(ControlType::Srgba);
@@ -91,7 +88,7 @@ pub fn determine_control_type(ty: &Type, mappings: &[MidiMapping]) -> SynResult<
                 if mappings.len() != 4 {
                     return Err(Error::new_spanned(
                         ty,
-                        "Hsla requires exactly 4 #[midi] attributes (h, s, l, a)"
+                        "Hsla requires exactly 4 #[midi] attributes (h, s, l, a)",
                     ));
                 }
                 return Ok(ControlType::Hsla);
@@ -100,7 +97,7 @@ pub fn determine_control_type(ty: &Type, mappings: &[MidiMapping]) -> SynResult<
                 if mappings.len() != 4 {
                     return Err(Error::new_spanned(
                         ty,
-                        "Hsva requires exactly 4 #[midi] attributes (h, s, v, a)"
+                        "Hsva requires exactly 4 #[midi] attributes (h, s, v, a)",
                     ));
                 }
                 return Ok(ControlType::Hsva);
@@ -108,18 +105,20 @@ pub fn determine_control_type(ty: &Type, mappings: &[MidiMapping]) -> SynResult<
             _ => {}
         }
     }
-    
+
     // Check if type is a vector type (Vec2, Vec3, Vec4)
     if let Some(vec_dim) = get_vector_dimension(ty) {
         if mappings.len() != vec_dim {
             return Err(Error::new_spanned(
                 ty,
-                format!("Vector type {} requires exactly {} #[midi] attributes", 
-                        type_name.unwrap_or_else(|| "Vec".to_string()), 
-                        vec_dim)
+                format!(
+                    "Vector type {} requires exactly {} #[midi] attributes",
+                    type_name.unwrap_or_else(|| "Vec".to_string()),
+                    vec_dim
+                ),
             ));
         }
-        
+
         let mut components = Vec::new();
         for mapping in mappings {
             let (min, max) = if let Some(ref range) = mapping.range {
@@ -132,25 +131,25 @@ pub fn determine_control_type(ty: &Type, mappings: &[MidiMapping]) -> SynResult<
             };
             components.push((mapping.cc, min, max));
         }
-        
+
         return Ok(ControlType::VectorRange { components });
     }
-    
+
     // Single mapping expected for scalar types
     if mappings.len() != 1 {
         return Err(Error::new_spanned(
             ty,
-            "Scalar types require exactly one #[midi] attribute"
+            "Scalar types require exactly one #[midi] attribute",
         ));
     }
-    
+
     let mapping = &mappings[0];
-    
+
     // Check if type is bool
     if is_bool_type(ty) {
         return Ok(ControlType::Toggle);
     }
-    
+
     // Check if type is a numeric type
     if let Some(numeric_type) = get_numeric_type(ty) {
         match numeric_type {
@@ -188,25 +187,32 @@ pub fn determine_control_type(ty: &Type, mappings: &[MidiMapping]) -> SynResult<
 fn parse_range_expr(expr: &Expr) -> SynResult<RangeSpec> {
     // Parse range expressions like 0.0..1.0 or -1.0..1.0 or 0..127
     if let Expr::Range(range) = expr {
-        let start = range.start.as_ref()
+        let start = range
+            .start
+            .as_ref()
             .ok_or_else(|| Error::new_spanned(expr, "Range must have a start value"))?;
-        let end = range.end.as_ref()
+        let end = range
+            .end
+            .as_ref()
             .ok_or_else(|| Error::new_spanned(expr, "Range must have an end value"))?;
-        
+
         // Try parsing as integers first
         if let (Some(min), Some(max)) = (parse_int_expr(start), parse_int_expr(end)) {
             return Ok(RangeSpec::Int(min, max));
         }
-        
+
         // Otherwise parse as floats
         let min = parse_float_expr(start)
             .ok_or_else(|| Error::new_spanned(start, "Invalid range start value"))?;
         let max = parse_float_expr(end)
             .ok_or_else(|| Error::new_spanned(end, "Invalid range end value"))?;
-        
+
         Ok(RangeSpec::Float(min, max))
     } else {
-        Err(Error::new_spanned(expr, "Expected range expression (e.g., 0.0..1.0 or 0..127)"))
+        Err(Error::new_spanned(
+            expr,
+            "Expected range expression (e.g., 0.0..1.0 or 0..127)",
+        ))
     }
 }
 
@@ -271,13 +277,11 @@ fn get_type_name(ty: &Type) -> Option<String> {
 }
 
 fn get_vector_dimension(ty: &Type) -> Option<usize> {
-    get_type_name(ty).and_then(|name| {
-        match name.as_str() {
-            "Vec2" => Some(2),
-            "Vec3" => Some(3),
-            "Vec4" => Some(4),
-            _ => None,
-        }
+    get_type_name(ty).and_then(|name| match name.as_str() {
+        "Vec2" => Some(2),
+        "Vec3" => Some(3),
+        "Vec4" => Some(4),
+        _ => None,
     })
 }
 
