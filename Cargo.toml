@@ -15,7 +15,7 @@ repository = "https://github.com/Alex-Gilbert/bevy_midi_params"
 homepage = "https://github.com/Alex-Gilbert/bevy_midi_params"
 
 [workspace.dependencies]
-bevy = { version = "0.16.1", default-features = false }
+bevy = { version = "0.18.0", default-features = false }
 midir = "0.10"
 inventory = "0.3"
 log = "0.4.27"
